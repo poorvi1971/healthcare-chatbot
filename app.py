@@ -1,5 +1,5 @@
 import streamlit as st
-from pypdf import PdfReader
+from PyPDF2 import PdfReader
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
@@ -8,44 +8,34 @@ import numpy as np
 st.set_page_config(page_title="Healthcare AI Assistant", layout="centered")
 
 st.title("🩺 Healthcare AI Assistant")
-st.write("Upload a medical PDF and ask questions")
-
-st.warning("⚠️ AI-generated content. Verify with a doctor.")
+st.write("Upload medical PDFs and ask intelligent questions")
+st.warning("⚠️ AI-generated content. Always consult a doctor.")
 
 # ---------------- Upload ----------------
-uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+uploaded_files = st.file_uploader("Upload PDF(s)", type="pdf", accept_multiple_files=True)
 
 # ---------------- Extract Text ----------------
-def extract_text(file):
+def extract_text(files):
     text = ""
-    reader = PdfReader(file)
-    for page in reader.pages:
-        content = page.extract_text()
-        if content:
-            text += content
+    for file in files:
+        reader = PdfReader(file)
+        for page in reader.pages:
+            content = page.extract_text()
+            if content:
+                text += content
     return text
 
-# ---------------- Chunking ----------------
-def split_text(text, chunk_size=300):
-    chunks = []
-    for i in range(0, len(text), chunk_size):
-        chunks.append(text[i:i+chunk_size])
-    return chunks
+# ---------------- Process ----------------
+if uploaded_files:
+    raw_text = extract_text(uploaded_files)
 
-# ---------------- Load Embedding Model ----------------
-@st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2")
+    # Split into chunks
+    chunks = [raw_text[i:i+500] for i in range(0, len(raw_text), 500)]
 
-# ---------------- Main ----------------
-if uploaded_file:
+    # Load model
+    model = SentenceTransformer('all-MiniLM-L6-v2')
 
-    text = extract_text(uploaded_file)
-    st.success("PDF processed successfully!")
-
-    chunks = split_text(text)
-
-    model = load_model()
+    # Create embeddings
     embeddings = model.encode(chunks)
 
     # Create FAISS index
@@ -53,37 +43,40 @@ if uploaded_file:
     index = faiss.IndexFlatL2(dimension)
     index.add(np.array(embeddings))
 
-  query = st.text_input("Ask a question:")
+    st.success("PDF processed successfully!")
 
-if query:
-    # Encode query
-    query_vec = model.encode([query])
-    D, I = index.search(np.array(query_vec), k=3)
+    # ---------------- Ask Question ----------------
+    query = st.text_input("Ask a question:")
 
-    # Get relevant chunks
-    context = " ".join([chunks[i] for i in I[0]])
+    if query:
+        # Encode query
+        query_vec = model.encode([query])
+        D, I = index.search(np.array(query_vec), k=3)
 
-    # Split into sentences
-    sentences = context.split(".")
-    question_words = query.lower().split()
+        # Get relevant chunks
+        context = " ".join([chunks[i] for i in I[0]])
 
-    best_sentences = []
+        # Split into sentences
+        sentences = context.split(".")
+        question_words = query.lower().split()
 
-    for sentence in sentences:
-        score = 0
-        for word in question_words:
-            if word in sentence.lower():
-                score += 1
+        best_sentences = []
 
-        if score > 0:
-            best_sentences.append(sentence.strip())
+        for sentence in sentences:
+            score = 0
+            for word in question_words:
+                if word in sentence.lower():
+                    score += 1
 
-    # Remove duplicates
-    best_sentences = list(dict.fromkeys(best_sentences))
+            if score > 0:
+                best_sentences.append(sentence.strip())
 
-    # Take top 3 sentences
-    final_answer = ". ".join(best_sentences[:3])
+        # Remove duplicates
+        best_sentences = list(dict.fromkeys(best_sentences))
 
-    # Display answer
-    st.subheader("Answer:")
-    st.write(final_answer if final_answer else "No relevant answer found.")
+        # Take top 3 sentences
+        final_answer = ". ".join(best_sentences[:3])
+
+        # Display answer
+        st.subheader("Answer:")
+        st.write(final_answer if final_answer else "No relevant answer found.")

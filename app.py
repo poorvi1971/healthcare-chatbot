@@ -66,4 +66,4 @@ if uploaded_file:
         answer = context.strip()
 
         st.subheader("Answer:")
-        st.write(answer[:800])  # limit to avoid repetition
+        st.write(answer[:2000])  # limit to avoid repetition

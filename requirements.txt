@@ -1,8 +1,7 @@
 streamlit
-pypdf2
+pypdf
 sentence-transformers
 faiss-cpu
 numpy
-openai
 transformers
 torch

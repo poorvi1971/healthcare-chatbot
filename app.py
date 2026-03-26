@@ -40,7 +40,7 @@ def load_models():
     embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 
     llm = pipeline(
-        "text2text-generation",
+        "text-generation"),
         model="google/flan-t5-base",
         device=-1  # CPU
     )

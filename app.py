@@ -1,18 +1,16 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-import numpy as np
-import faiss
 from sentence_transformers import SentenceTransformer
-import openai
-
-# 🔑 SET YOUR OPENAI KEY HERE
-openai.api_key = "YOUR_API_KEY_HERE"
+import faiss
+import numpy as np
+from transformers import pipeline
 
 # ---------------- UI ----------------
 st.set_page_config(page_title="Healthcare AI Assistant", layout="centered")
 
 st.title("🩺 Healthcare AI Assistant")
-st.write("Upload medical PDFs and ask questions")
+st.write("Upload medical PDFs and ask intelligent questions")
+
 st.warning("⚠️ AI-generated content. Always consult a doctor.")
 
 # ---------------- Upload ----------------
@@ -24,55 +22,68 @@ def extract_text(files):
     for file in files:
         reader = PdfReader(file)
         for page in reader.pages:
-            if page.extract_text():
-                text += page.extract_text()
+            content = page.extract_text()
+            if content:
+                text += content
     return text
 
 # ---------------- Chunking ----------------
-def split_text(text, chunk_size=500):
+def chunk_text(text, chunk_size=500):
     chunks = []
     for i in range(0, len(text), chunk_size):
         chunks.append(text[i:i+chunk_size])
     return chunks
 
-# ---------------- Embedding ----------------
+# ---------------- Load Models ----------------
 @st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2")
+def load_models():
+    embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ---------------- Ask OpenAI ----------------
-def ask_openai(question, context):
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "Answer based on the medical document context."},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
-        ]
+    llm = pipeline(
+        "text2text-generation",
+        model="google/flan-t5-base",
+        device=-1  # CPU
     )
-    return response["choices"][0]["message"]["content"]
 
-# ---------------- Main Logic ----------------
-if uploaded_files:
-    text = extract_text(uploaded_files)
-    st.success(f"Loaded {len(text)} characters")
+    return embed_model, llm
 
-    chunks = split_text(text)
-    st.info(f"Created {len(chunks)} chunks")
+embed_model, llm = load_models()
 
-    model = load_model()
-    embeddings = model.encode(chunks)
+# ---------------- FAISS Index ----------------
+def create_faiss_index(chunks):
+    embeddings = embed_model.encode(chunks)
+    dim = embeddings.shape[1]
 
-    index = faiss.IndexFlatL2(len(embeddings[0]))
+    index = faiss.IndexFlatL2(dim)
     index.add(np.array(embeddings))
 
-    query = st.text_input("Ask a question:")
+    return index, embeddings
+
+# ---------------- Ask LLM ----------------
+def get_answer(question, context):
+    prompt = f"Context: {context}\n\nQuestion: {question}\nAnswer:"
+    result = llm(prompt, max_length=200, do_sample=True)
+    return result[0]['generated_text']
+
+# ---------------- MAIN ----------------
+if uploaded_files:
+    text = extract_text(uploaded_files)
+    st.success(f"Loaded documents ({len(text)} characters)")
+
+    chunks = chunk_text(text)
+    st.info(f"Created {len(chunks)} chunks")
+
+    index, embeddings = create_faiss_index(chunks)
+
+    query = st.text_input("Ask a question")
 
     if query:
-        query_vec = model.encode([query])
+        query_vec = embed_model.encode([query])
         D, I = index.search(np.array(query_vec), k=3)
 
         context = " ".join([chunks[i] for i in I[0]])
 
-        answer = ask_openai(query, context)
-        st.write("### 💬 Answer:")
+        answer = get_answer(query, context)
+
+        st.subheader("Answer:")
         st.write(answer)

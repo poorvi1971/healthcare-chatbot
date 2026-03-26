@@ -55,15 +55,36 @@ if uploaded_file:
 
     query = st.text_input("Ask a question:")
 
-    if query:
-        query_vec = model.encode([query])
-        D, I = index.search(np.array(query_vec), k=3)
 
-        # Get relevant chunks
-        context = " ".join([chunks[i] for i in I[0]])
+if query:
+    # Encode query
+    query_vec = model.encode([query])
+    D, I = index.search(np.array(query_vec), k=3)
 
-        # ---------------- SIMPLE ANSWER (NO REPEATING ISSUE) ----------------
-        answer = context.strip()
+    # Get relevant chunks
+    context = " ".join([chunks[i] for i in I[0]])
 
-        st.subheader("Answer:")
-        st.write(answer[:2000])  # limit to avoid repetition
+    # Split into sentences
+    sentences = context.split(".")
+    question_words = query.lower().split()
+
+    best_sentences = []
+
+    for sentence in sentences:
+        score = 0
+        for word in question_words:
+            if word in sentence.lower():
+                score += 1
+
+        if score > 0:
+            best_sentences.append(sentence.strip())
+
+    # Remove duplicates
+    best_sentences = list(dict.fromkeys(best_sentences))
+
+    # Take top 3 sentences
+    final_answer = ". ".join(best_sentences[:3])
+
+    # Show answer
+    st.subheader("Answer:")
+    st.write(final_answer if final_answer else "No relevant answer found.")    

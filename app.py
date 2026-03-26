@@ -53,8 +53,7 @@ if uploaded_file:
     index = faiss.IndexFlatL2(dimension)
     index.add(np.array(embeddings))
 
-    query = st.text_input("Ask a question:")
-
+  query = st.text_input("Ask a question:")
 
 if query:
     # Encode query
@@ -85,6 +84,6 @@ if query:
     # Take top 3 sentences
     final_answer = ". ".join(best_sentences[:3])
 
-    # Show answer
+    # Display answer
     st.subheader("Answer:")
-    st.write(final_answer if final_answer else "No relevant answer found.")    
+    st.write(final_answer if final_answer else "No relevant answer found.")

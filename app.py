@@ -7,8 +7,8 @@ import numpy as np
 # ---------------- UI ----------------
 st.set_page_config(page_title="Healthcare AI Assistant", layout="centered")
 
-st.title("🩺 Healthcare AI Assistant")
-st.write("Upload medical PDFs and ask intelligent questions")
+st.title("🩺 MediQuery AI")
+st.write("Upload medical documents and get smart answer instantly ")
 st.warning("⚠️ AI-generated content. Always consult a doctor.")
 
 # ---------------- Upload ----------------
